@@ -8,3 +8,5 @@
 body:has(.court-stage-expanded){overflow:hidden}
 .court-stage:fullscreen canvas,.court-stage-expanded canvas{width:min(100vw,calc(100vh * 960 / 560));width:min(100vw,calc(100dvh * 960 / 560));height:auto}
 .court-stage:fullscreen .score,.court-stage-expanded .score{top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));font-size:clamp(1rem,2.2vw,1.55rem)}
+
+.shot-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.shot-buttons .swing{padding-inline:4px}

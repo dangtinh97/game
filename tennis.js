@@ -1,4 +1,4 @@
-import { connectBroker, defaultRoom, topic } from './mqtt-link.js';
+import { connectBroker, defaultRoom, feedbackTopic, topic } from './mqtt-link.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
@@ -49,12 +49,14 @@ const roomCode = document.querySelector('#room-code');
 const copy = document.querySelector('#copy');
 
 const room = defaultRoom;
+let roomClient;
 roomCode.textContent = room;
 
 function connectRoom() {
   connection.textContent = 'Đang kết nối MQTT…';
   try {
     const active = connectBroker(message => { connection.textContent = message; });
+    roomClient = active;
     active.on('connect', () => {
       active.subscribe(topic(room), (error, granted) => {
         if (error || granted?.[0]?.qos === 128) {
@@ -68,7 +70,10 @@ function connectRoom() {
       if (receivedTopic !== topic(room) || packet.retain || payload.length > 100) return;
       try {
         const data = JSON.parse(payload.toString());
-        if (Number.isFinite(data?.swing) && data.swing > 0 && data.swing <= 1) hit(data.swing);
+        if (Number.isFinite(data?.swing) && data.swing > 0 && data.swing <= 1) {
+          const direction = Number.isFinite(data.direction) ? clamp(data.direction, -1, 1) : 0;
+          hit(data.swing, direction);
+        }
       } catch {}
     });
   } catch (error) {
@@ -86,9 +91,19 @@ copy.onclick = async () => {
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const hitWindowStart = 0.78;
+const contactProgress = 0.91;
+const bounceProgress = 0.67;
+const singlesSideline = 0.91;
+const hitWindowStart = 0.84;
+const hitWindowEnd = 1.02;
+const swingDuration = 360;
+const swingWindup = 100;
 let player = 0;
+let playerSpeed = 0;
+let playerDepth = 0.03;
+let racketSide = 1;
 let opponent = 0;
+let opponentDepth = 0.98;
 let queuedSwing = null;
 let swingUntil = 0;
 let cpuSwingUntil = 0;
@@ -104,16 +119,23 @@ function updateScore() {
   document.querySelector('#cpu-score').textContent = points[1];
 }
 
-function sendBall(from, to, direction, duration, contact) {
+function sendBall(from, to, direction, duration, contact, landing) {
   ball = { from, to, direction, duration, elapsed: 0 };
   ball.startDepth = contact?.depth ?? (direction > 0 ? 0.98 : 0.03);
   ball.startHeight = contact?.height ?? 42;
   ball.endDepth = direction > 0 ? 0.03 : 0.98;
+  if (landing) {
+    ball.to = from + (landing.x - from) / bounceProgress;
+    ball.endDepth = ball.startDepth + (landing.depth - ball.startDepth) / bounceProgress;
+  }
+  if (direction > 0) {
+    const intercept = from + (to - from) * contactProgress;
+    racketSide = intercept < player - 0.08 ? -1 : 1;
+  }
 }
 
-function ballPosition() {
-  const progress = clamp(ball.elapsed / ball.duration, 0, 1);
-  const bounceAt = 0.67;
+function ballPosition(progress = ball.elapsed / ball.duration) {
+  const bounceAt = bounceProgress;
   const beforeBounce = progress < bounceAt;
   const phase = beforeBounce ? progress / bounceAt : (progress - bounceAt) / (1 - bounceAt);
   const height = beforeBounce
@@ -123,18 +145,18 @@ function ballPosition() {
   return {
     x: ball.from + (ball.to - ball.from) * progress,
     depth: ball.startDepth + (ball.endDepth - ball.startDepth) * progress,
-    height
+    height: Math.max(0, height)
   };
 }
 
 function serve() {
-  cpuSwingUntil = performance.now() + 210;
+  cpuSwingUntil = performance.now() + swingDuration - swingWindup;
   rallies = 0;
-  sendBall(opponent, Math.random() * 1.5 - 0.75, 1, 1.65);
+  sendBall(opponent, Math.random() * 1.5 - 0.75, 1, 1.65, { depth: opponentDepth, height: 42 });
   hint.textContent = 'Máy đưa bóng sang sân bạn.';
 }
 
-function score(side) {
+function score(side, reason) {
   points[side]++;
   updateScore();
   ball = queuedSwing = null;
@@ -142,14 +164,15 @@ function score(side) {
     running = false;
     start.hidden = false;
     start.textContent = 'Chơi lại';
-    hint.textContent = side === 0 ? 'Bạn thắng! Vung vợt để chơi lại.' : 'Máy thắng. Vung vợt để chơi lại.';
+    const result = side === 0 ? 'Bạn thắng!' : 'Máy thắng.';
+    hint.textContent = [reason, result, 'Vung vợt để chơi lại.'].filter(Boolean).join(' ');
     return;
   }
-  hint.textContent = side === 0 ? 'Bạn ghi điểm.' : 'Máy ghi điểm.';
+  hint.textContent = reason || (side === 0 ? 'Bạn ghi điểm.' : 'Máy ghi điểm.');
   serveAt = performance.now() + 1050;
 }
 
-function hit(strength) {
+function hit(strength, direction = 0) {
   if (!running) {
     startMatch();
     return;
@@ -157,39 +180,47 @@ function hit(strength) {
 
   const now = performance.now();
   if (now < swingUntil || queuedSwing) return;
-  if (ball?.direction === 1) {
-    const untilReach = ball.duration * hitWindowStart - ball.elapsed;
-    if (untilReach > 0 && untilReach <= 0.16) {
-      queuedSwing = { strength, until: now + 200 };
-      return;
-    }
-  }
-  swingRacket(strength, now);
+  const incoming = ball?.direction === 1;
+  const untilWindow = incoming ? ball.duration * hitWindowStart - ball.elapsed : 0;
+  const delay = Math.max(swingWindup, Math.min(170, untilWindow * 1000));
+  swingUntil = now + delay + swingDuration - swingWindup;
+  if (incoming) queuedSwing = { strength, direction, contactAt: now + delay };
 }
 
-function swingRacket(strength, now) {
-  swingUntil = now + 210;
-  if (ball?.direction !== 1) return;
-
+function swingRacket(strength, direction) {
   const progress = ball.elapsed / ball.duration;
-  if (progress < hitWindowStart) {
-    hint.textContent = 'Hơi sớm. Vung khi vòng đón bóng hiện trên sân.';
+  if (progress < hitWindowStart || progress > hitWindowEnd) {
+    hint.textContent = progress < hitWindowStart ? 'Hơi sớm.' : 'Hơi muộn.';
     return;
   }
 
   const contact = ballPosition();
-  if (progress > 1.06 || Math.abs(player - contact.x) > 0.32) return;
-  const aim = opponent >= 0 ? -1 : 1;
-  const target = aim * (0.68 + strength * 0.29);
-  sendBall(contact.x, target, -1, 1.18 - strength * 0.46, contact);
+  const reach = (contact.x - player) * racketSide;
+  if (reach < -0.04 || reach > 0.31 || Math.abs(contact.depth - playerDepth) > 0.075) {
+    hint.textContent = 'Bóng ngoài tầm vợt.';
+    return;
+  }
+  const timing = clamp(1 - Math.abs(progress - contactProgress) / 0.13, 0, 1);
+  const power = strength * (0.52 + timing * 0.48);
+  const landing = {
+    x: direction * (0.67 + power * 0.37),
+    depth: 0.62 + strength * 0.26 + strength * (1 - timing) * 0.18
+  };
+  sendBall(contact.x, landing.x, -1, 1.28 - power * 0.58, contact, landing);
   rallies++;
-  hint.textContent = 'Đã trả bóng.';
+  if (roomClient?.connected) {
+    roomClient.publish(feedbackTopic(room), JSON.stringify({ hit: true }));
+  }
+  hint.textContent = timing >= 0.78 ? 'Đánh đúng nhịp!' : 'Đã trả bóng.';
 }
 
 function startMatch() {
   points = [0, 0];
   updateScore();
-  player = opponent = 0;
+  player = opponent = playerSpeed = 0;
+  playerDepth = 0.03;
+  opponentDepth = 0.98;
+  queuedSwing = null;
   swingUntil = 0;
   running = true;
   start.blur();
@@ -205,9 +236,10 @@ window.addEventListener('keydown', event => {
     if (!event.repeat) void toggleFullscreen();
     return;
   }
-  if (event.code !== 'Space' || event.target.closest('input, button, a')) return;
+  const aim = { ArrowLeft: -0.65, Space: 0, ArrowRight: 0.65 }[event.code];
+  if (aim === undefined || event.target.closest('input, button, a')) return;
   event.preventDefault();
-  if (!event.repeat) hit(0.8);
+  if (!event.repeat) hit(0.8, aim);
 });
 
 function moveToward(current, target, maxStep) {
@@ -216,31 +248,58 @@ function moveToward(current, target, maxStep) {
 
 function update(now, dt) {
   const incoming = ball?.direction === 1;
-  const target = incoming ? ball.from + (ball.to - ball.from) * 0.91 : 0;
-  player = moveToward(player, target, dt * (incoming ? 2.3 : 0.82));
+  const intercept = incoming ? ball.from + (ball.to - ball.from) * contactProgress : 0;
+  const target = incoming ? intercept - racketSide * 0.145 : 0;
+  const depth = incoming ? ball.startDepth + (ball.endDepth - ball.startDepth) * contactProgress : 0.03;
+  playerDepth = moveToward(playerDepth, depth - (incoming ? 0.022 : 0), dt * 0.23);
+  const difference = target - player;
+  const acceleration = 7.5;
+  const limit = incoming ? 1.85 : 0.8;
+  const desiredSpeed = Math.sign(difference) * Math.min(limit, Math.sqrt(2 * acceleration * Math.abs(difference)));
+  playerSpeed = moveToward(playerSpeed, desiredSpeed, acceleration * dt);
+  const nextPosition = player + playerSpeed * dt;
+  if (Math.sign(target - nextPosition) !== Math.sign(difference)) {
+    player = target;
+    playerSpeed = 0;
+  } else {
+    player = nextPosition;
+  }
 
   if (!ball) {
     if (now >= serveAt) serve();
     return;
   }
+  const previousProgress = ball.elapsed / ball.duration;
   ball.elapsed += dt;
   const progress = ball.elapsed / ball.duration;
-  const cpuTarget = ball.direction < 0 && progress > 0.23 ? ball.to : 0;
+  const cpuTarget = ball.direction < 0 && progress > 0.23 ? clamp(ball.to, -1.05, 1.05) : 0;
   opponent = moveToward(opponent, cpuTarget, dt * 1.14);
+  const cpuDepth = ball.direction < 0 && progress > 0.23 ? clamp(ball.endDepth, 0.58, 1.13) : 0.98;
+  opponentDepth = moveToward(opponentDepth, cpuDepth, dt * 0.24);
+
+  if (previousProgress < bounceProgress && progress >= bounceProgress) {
+    const bounce = ballPosition(bounceProgress);
+    const outsideCourt = Math.abs(bounce.x) > singlesSideline ||
+      (ball.direction < 0 ? bounce.depth < 0.5 || bounce.depth > 1 : bounce.depth < 0 || bounce.depth > 0.5);
+    if (outsideCourt) {
+      if (ball.direction < 0) score(1, 'Bóng ngoài sân. Máy ghi điểm.');
+      else score(0, 'Máy đánh ra ngoài. Bạn ghi điểm.');
+      return;
+    }
+  }
 
   if (ball.direction > 0) {
-    if (progress > 1.06) {
-      score(1);
-    } else if (queuedSwing && progress >= hitWindowStart) {
-      const { strength, until } = queuedSwing;
+    if (queuedSwing && now >= queuedSwing.contactAt) {
+      const { strength, direction } = queuedSwing;
       queuedSwing = null;
-      if (now <= until) swingRacket(strength, now);
+      swingRacket(strength, direction);
     }
+    if (ball.direction === 1 && progress > 1.13) score(1);
   } else if (progress >= 1) {
-    if (Math.abs(opponent - ball.to) > 0.26) score(0);
+    if (Math.abs(opponent - ball.to) > 0.26 || Math.abs(opponentDepth - ball.endDepth) > 0.085) score(0);
     else {
       const contact = ballPosition();
-      cpuSwingUntil = now + 210;
+      cpuSwingUntil = now + swingDuration - swingWindup;
       const reply = clamp(-player * 0.65 + (Math.random() - 0.5) * 0.95, -0.87, 0.87);
       sendBall(contact.x, reply, 1, Math.max(1.03, 1.62 - rallies * 0.08), contact);
     }
@@ -311,7 +370,7 @@ function draw(now) {
   for (const depth of [0.27, 0.73]) line(project(-0.91, depth), project(0.91, depth), '#e0f2e6');
   line(project(0, 0.27), project(0, 0.73), '#e0f2e6');
 
-  avatar(opponent, 1, '#f6a476', false);
+  avatar(opponent, opponentDepth, '#f6a476', false);
 
   polygon([project(-1.18, 0.5), project(1.18, 0.5), project(1.18, 0.5, 32), project(-1.18, 0.5, 32)], '#183541af');
   for (let x = -14; x <= 14; x++) line(project(x * 0.08, 0.5), project(x * 0.08, 0.5, 32), '#c1e7dc43', 1);
@@ -319,12 +378,12 @@ function draw(now) {
   line(project(-1.18, 0.5, 32), project(1.18, 0.5, 32), '#eef4e7', 3);
   for (const x of [-1.18, 1.18]) line(project(x, 0.5), project(x, 0.5, 34), '#eef4e7', 4);
 
-  avatar(player, 0.03, '#daf77c', now < swingUntil);
+  avatar(player, playerDepth, '#daf77c', now < swingUntil);
   if (ball) {
-    const progress = clamp(ball.elapsed / ball.duration, 0, 1);
+    const progress = ball.elapsed / ball.duration;
     const { x, depth, height } = ballPosition();
-    if (ball.direction > 0 && progress >= hitWindowStart) {
-      const [targetX, targetY] = project(ball.to, 0.03);
+    if (ball.direction > 0 && progress >= 0.74) {
+      const [targetX, targetY] = project(ball.from + (ball.to - ball.from) * contactProgress, playerDepth + 0.022);
       ctx.beginPath();
       ctx.ellipse(targetX, targetY, 30, 9, 0, 0, Math.PI * 2);
       ctx.strokeStyle = '#daf77c';
@@ -342,9 +401,9 @@ function frame(now) {
   if (running) update(now, dt);
   if (render3d) {
     render3d({
-      now, dt, player, opponent, swingUntil, cpuSwingUntil,
+      now, dt, player, playerDepth, opponent, opponentDepth, swingUntil, cpuSwingUntil, swingDuration, racketSide,
       ball: ball ? ballPosition() : null,
-      target: ball?.direction === 1 && ball.elapsed / ball.duration >= hitWindowStart ? ball.to : null
+      target: ball?.direction === 1 && ball.elapsed / ball.duration >= 0.74 ? ball.from + (ball.to - ball.from) * contactProgress : null
     });
   } else {
     draw(now);

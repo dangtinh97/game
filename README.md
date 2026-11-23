@@ -14,8 +14,8 @@ vào sảnh từ `index.html`.
    (đổi `control.html` thành `index.html` nếu muốn mở từ URL gốc).
 3. Bật cảm biến và cấp quyền nếu được hỏi. Vung cổ tay để bắt đầu trận.
    Nhân vật tự chạy đón bóng. Vung khi vòng đón bóng hiện trên sân,
-   hoặc chạm **Đánh bóng** trên tay cầm.
-4. Có thể dùng Space trên máy tính để bắt đầu hoặc đánh bóng. Ai đạt 7
+   và vung theo hướng muốn đánh. Tay cầm cũng có nút **Trái**, **Thẳng** và **Phải**.
+4. Có thể dùng Space để bắt đầu hoặc đánh thẳng, phím mũi tên để đánh sang hai bên. Ai đạt 7
    điểm trước sẽ thắng.
 
 ## MQTT
@@ -32,12 +32,19 @@ cho phép publish và subscribe trên topic đó.
 
 Đã xác minh gửi và nhận MQTT qua WSS, đồng thời xác minh gói gửi từ cổng
 TCP 1883 được nhận qua WSS trên cùng topic. ESP32 có thể dùng đúng mã phòng
-đang hiện trên sân rồi publish `{"swing":0.65}` để đánh. `swing`
-nhận giá trị lớn hơn 0 và tối đa 1. Gửi ở QoS 0 và tắt retain.
+đang hiện trên sân rồi publish `{"swing":0.65,"direction":-0.6}` để đánh.
+`swing` lớn hơn 0 và tối đa 1. `direction` từ −1 (trái) qua 0 (thẳng)
+đến 1 (phải). Gói chỉ có `swing` mặc định đánh thẳng. Gửi ở QoS 0 và tắt retain.
+
+Khi vợt chạm bóng, sân gửi `{"hit":true}` vào
+`san-nha/tennis/v1/<mã-phòng>/feedback` ở QoS 0, không retain. Tay cầm web
+rung ngắn nếu trình duyệt hỗ trợ Vibration API. ESP32 cũng có thể đăng ký
+topic này để điều khiển mô-tơ rung.
 
 Cơ chế đấu tennis với máy và đánh bằng chuyển động lấy cảm hứng từ
 [Wibbly](https://vulos.org/projects/wibbly/). Sân, hình ảnh và mã game được
-viết riêng. Tay cầm dùng `DeviceMotionEvent.rotationRate` để nhận cú vung.
+viết riêng. Tay cầm dùng `DeviceMotionEvent.rotationRate` để nhận cú vung và gia tốc ngang
+để ước lượng hướng khi giữ điện thoại dọc.
 
 Sân 3D dùng Three.js qua jsDelivr. Máy cần WebGL 2 để hiển thị sân 3D.
 Nếu thư viện không tải hoặc thiết bị mất WebGL, trang chuyển sang sân 2D.

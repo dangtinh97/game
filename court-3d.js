@@ -163,6 +163,7 @@ function buildPlayer(scene, colors, facing) {
   shadow.rotation.x = -Math.PI / 2;
   const delta = new THREE.Vector3();
   let previousX = 0;
+  let previousZ = null;
   let step = 0;
   let stride = 0;
 
@@ -173,16 +174,21 @@ function buildPlayer(scene, colors, facing) {
     part.quaternion.setFromUnitVectors(up, delta.normalize());
   }
 
-  return (x, z, now, dt, swingUntil) => {
+  return (x, z, now, dt, swingUntil, swingDuration, racketSide) => {
     const movement = x - previousX;
     previousX = x;
-    step += Math.abs(movement) * 5.7;
-    stride = THREE.MathUtils.damp(stride, dt > 0 ? Math.min(1, Math.abs(movement) / dt / 5) : 0, 14, dt);
-    const swingProgress = THREE.MathUtils.clamp(1 - (swingUntil - now) / 210, 0, 1);
-    const swing = Math.sin(swingProgress * Math.PI);
+    const distance = Math.hypot(movement, z - (previousZ ?? z));
+    previousZ = z;
+    step += distance * 5.7;
+    stride = THREE.MathUtils.damp(stride, dt > 0 ? Math.min(1, distance / dt / 5) : 0, 14, dt);
+    const swingProgress = THREE.MathUtils.clamp(1 - (swingUntil - now) / swingDuration, 0, 1);
+    const preparation = Math.max(0, 1 - Math.abs(swingProgress - 0.13) / 0.13);
+    const followThrough = Math.sin(Math.PI * THREE.MathUtils.clamp((swingProgress - 0.13) / 0.87, 0, 1));
+    const swing = (followThrough - preparation * 0.54) * racketSide;
     const bounce = Math.abs(Math.sin(step)) * 0.068 * stride;
     group.position.set(x, 0.005, z);
-    group.rotation.y = facing - 0.58 * swing;
+    group.rotation.y = facing - 0.7 * swing;
+    group.rotation.z = -THREE.MathUtils.clamp(movement / Math.max(dt, 0.001) * 0.019, -0.13, 0.13) * Math.cos(facing);
     shadow.position.set(x, 0.018, z);
     torso.position.y = 1.1 + bounce;
     pelvis.position.y = 0.84 + bounce;
@@ -200,8 +206,8 @@ function buildPlayer(scene, colors, facing) {
       limb.foot.position.copy(foot);
 
       const reach = index === 1 ? swing : 0;
-      const elbow = new THREE.Vector3(side * (0.32 + reach * 0.08), 0.99 + bounce + reach * 0.14, -0.055 - reach * 0.12);
-      const hand = new THREE.Vector3(side * (0.29 - reach * 0.49), 1.02 + bounce + reach * 0.28, -0.25 - reach * 0.29 + cycle * 0.1);
+      const elbow = new THREE.Vector3(side * (0.32 + reach * 0.08), 0.99 + bounce + Math.abs(reach) * 0.14, -0.055 - Math.abs(reach) * 0.12);
+      const hand = new THREE.Vector3(side * (0.29 - reach * 0.49), 1.02 + bounce + Math.abs(reach) * 0.28, -0.25 - Math.abs(reach) * 0.29 + cycle * 0.1);
       segment(limb.upperArm, new THREE.Vector3(side * 0.214, 1.23 + bounce, 0), elbow, 0.064);
       segment(limb.forearm, elbow, hand, 0.045);
       limb.hand.position.copy(hand);
@@ -261,8 +267,8 @@ export function createCourt(canvas) {
       renderer.setSize(width, Math.round(width * 560 / 960), false);
     }
 
-    animatePlayer(state.player * halfWidth, positionZ(0.03), state.now, state.dt, state.swingUntil);
-    animateCpu(state.opponent * halfWidth, positionZ(0.98), state.now, state.dt, state.cpuSwingUntil);
+    animatePlayer(state.player * halfWidth, positionZ(state.playerDepth), state.now, state.dt, state.swingUntil, state.swingDuration, state.racketSide);
+    animateCpu(state.opponent * halfWidth, positionZ(state.opponentDepth), state.now, state.dt, state.cpuSwingUntil, state.swingDuration, 1);
     ball.visible = shadow.visible = Boolean(state.ball);
     if (state.ball) {
       const { x, depth, height } = state.ball;
@@ -272,7 +278,7 @@ export function createCourt(canvas) {
       shadow.material.opacity = 0.5 / (1 + height * 0.022);
     }
     target.visible = state.target !== null;
-    if (target.visible) target.position.x = state.target * halfWidth;
+    if (target.visible) target.position.set(state.target * halfWidth, 0.023, positionZ(state.playerDepth + 0.022));
     renderer.render(scene, camera);
   };
 }

@@ -1,4 +1,5 @@
 export const topic = room => `san-nha/tennis/v1/${room}/input`;
+export const feedbackTopic = room => `san-nha/tennis/v1/${room}/feedback`;
 const defaultBroker = 'wss://myoupip.com/mqtt';
 export const validRoom = room => /^[1-9]{6}$/.test(room);
 export const normalizeRoom = value => value.trim();
