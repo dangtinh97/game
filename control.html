@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Tay cầm · Sân Nhà</title><link rel="stylesheet" href="style.css"><script defer src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script type="module" src="control.js"></script></head>
+<body><main class="shell remote">
+<header><span class="brand">SÂN NHÀ</span></header>
+<section class="panel"><h1>Tay cầm</h1>
+<form id="join">
+<label for="room">Mã phòng trên màn hình sân</label>
+<input id="room" name="room" required maxlength="6" minlength="6" inputmode="numeric" pattern="[1-9]{6}" autocomplete="off">
+<div class="actions"><button>Vào phòng</button></div>
+</form>
+<p id="connection" role="status"></p><p>Bật cảm biến, cầm chắc điện thoại và vung cổ tay để đánh bóng. Nhân vật tự chạy đón bóng.</p>
+<div class="actions"><button id="enable" disabled>Bật cảm biến</button></div>
+<p id="sensor" role="status"></p>
+<button class="swing" id="swing" disabled>Đánh bóng</button></section>
+</main></body>
+</html>

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Tennis · Sân Nhà</title><link rel="stylesheet" href="style.css"><script defer src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script type="module" src="tennis.js"></script></head>
+<body><main class="shell game">
+<header><a class="brand" href="index.html">SÂN NHÀ</a><span>Tennis</span></header>
+<section class="arena" aria-label="Sân tennis">
+<div class="court-stage" id="court-stage" tabindex="-1">
+<div class="score"><span>Bạn <b id="player-score">0</b></span><span>Máy <b id="cpu-score">0</b></span></div>
+<canvas id="court-3d" width="960" height="560" aria-label="Sân tennis 3D" hidden></canvas>
+<canvas id="court" width="960" height="560" aria-label="Sân và bóng"></canvas>
+</div>
+<div class="match"><span id="hint" role="status">Vung vợt hoặc nhấn Space để bắt đầu.</span><div class="actions"><button class="secondary" id="fullscreen" aria-controls="court-stage" aria-keyshortcuts="F11">Toàn màn hình</button><button id="start">Bắt đầu trận</button></div></div>
+</section>
+<p class="keys">Nhân vật tự đón bóng. Space để bắt đầu hoặc đánh. F11 để bật/tắt toàn màn hình, Esc để thoát. Thắng khi đạt 7 điểm.</p>
+<section class="panel">
+<h2>Kết nối tay cầm</h2>
+<div class="actions" id="pair"><span>Mã phòng <strong id="room-code"></strong></span><button class="secondary" id="copy">Sao chép mã</button><a class="secondary" href="control.html">Mở web tay cầm</a></div>
+<p id="connection" role="status">Đang kết nối MQTT…</p>
+</section>
+</main></body>
+</html>
