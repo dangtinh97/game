@@ -18,6 +18,17 @@ vào sảnh từ `index.html`.
 4. Có thể dùng Space để bắt đầu hoặc đánh thẳng, phím mũi tên để đánh sang hai bên. Ai đạt 7
    điểm trước sẽ thắng.
 
+## Vườn Trên Mây
+
+Mở `fruit.html`, bấm **Bắt đầu** rồi kéo chuột hoặc vuốt để chém quả đang bay.
+Mỗi quả cho 10 điểm. Chém từ hai quả trong cùng đường chém sẽ được thêm điểm.
+Để rơi ba quả thì hết lượt. Kỷ lục được lưu trên trình duyệt.
+
+Để chơi bằng điện thoại, mở `control.html?game=fruit`, vào phòng `123456` và
+bật cảm biến. Cú vung đầu bắt đầu lượt. Sau đó vung trái/phải để chém theo hướng
+hoặc chạm nút chọn hướng. Game dùng cùng payload MQTT với tennis, qua hai topic
+`san-nha/fruit/v1/<mã-phòng>/input` và `san-nha/fruit/v1/<mã-phòng>/feedback`.
+
 ## MQTT
 
 Hai trang dùng cố định `wss://myoupip.com/mqtt`, khai báo chung trong

@@ -1,5 +1,11 @@
 import { connectBroker, defaultRoom, feedbackTopic, normalizeRoom, topic, validRoom } from './mqtt-link.js';
 
+const game = new URLSearchParams(location.search).get('game') === 'fruit' ? 'fruit' : 'tennis';
+if (game === 'fruit') {
+  document.querySelector('h1').textContent = 'Tay cầm chém hoa quả';
+  document.querySelector('#controller-help').textContent =
+    'Giữ điện thoại dọc và vung sang trái hoặc phải để chém. Có thể dùng các nút bên dưới.';
+}
 const join = document.querySelector('#join');
 const roomInput = document.querySelector('#room');
 roomInput.value = defaultRoom;
@@ -17,7 +23,7 @@ const vibrationNotice = document.querySelector('#vibration-notice');
 vibrationNotice.hidden = supportsVibration;
 
 function publish(input) {
-  if (client?.connected) client.publish(topic(room), JSON.stringify(input));
+  if (client?.connected) client.publish(topic(room, game), JSON.stringify(input));
 }
 
 function hit(strength, direction) {
@@ -48,7 +54,7 @@ join.onsubmit = event => {
       swingButtons.forEach(button => { button.disabled = true; });
     });
     client = active;
-    const feedback = feedbackTopic(code);
+    const feedback = feedbackTopic(code, game);
     if (supportsVibration) {
       active.on('message', (receivedTopic, payload, packet) => {
         if (client !== active || receivedTopic !== feedback || packet.retain || payload.length > 64) return;

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vườn Trên Mây · Sân Nhà</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="fruit.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script>
+  <script type="module" src="fruit.js"></script>
+</head>
+<body>
+<main class="shell fruit-shell">
+  <header><a class="brand" href="index.html">SÂN NHÀ</a><h1>Vườn Trên Mây</h1></header>
+  <section class="fruit-board" aria-label="Sân chém hoa quả">
+    <canvas id="fruit-court" aria-label="Hoa quả bay trên sân"></canvas>
+    <div class="fruit-hud">
+      <div class="fruit-stat"><span>Điểm</span><strong id="fruit-score">0</strong></div>
+      <div class="fruit-stat"><span>Còn lại</span><strong id="fruit-lives">3 / 3</strong></div>
+    </div>
+    <p class="fruit-combo" id="fruit-combo" hidden></p>
+    <div class="fruit-overlay" id="fruit-overlay">
+      <div class="fruit-dialog">
+        <h2 id="fruit-title">Chém hoa quả 3D</h2>
+        <p id="fruit-message">Kéo chuột, vuốt màn hình hoặc vung tay cầm để chém. Cắt nhiều quả trong một đường để lấy điểm combo.</p>
+        <button id="fruit-start" disabled>Bắt đầu</button>
+      </div>
+    </div>
+  </section>
+  <section class="fruit-remote" aria-label="Ghép tay cầm">
+    <div><strong>Tay cầm MQTT</strong><p id="fruit-connection" role="status">Đang kết nối…</p></div>
+    <a class="secondary" href="control.html?game=fruit">Mở tay cầm · 123456</a>
+  </section>
+</main>
+</body>
+</html>
