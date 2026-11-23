@@ -29,6 +29,34 @@ bật cảm biến. Cú vung đầu bắt đầu lượt. Sau đó vung trái/ph
 hoặc chạm nút chọn hướng. Game dùng cùng payload MQTT với tennis, qua hai topic
 `san-nha/fruit/v1/<mã-phòng>/input` và `san-nha/fruit/v1/<mã-phòng>/feedback`.
 
+## Tay cầm ESP32 với GY-521 (MPU6050)
+
+Nối [module GY-521](https://hshop.vn/cam-bien-6-dof-bac-tu-do-gy-521-mpu6050)
+với ESP32 qua I²C. Bảng dưới dùng chân thường gặp trên ESP32 DevKit.
+Nếu dùng board khác, chọn SDA/SCL theo sơ đồ chân và khai báo đúng trong firmware.
+
+| GY-521 | ESP32 DevKit |
+| --- | --- |
+| `VCC` | `3V3` |
+| `GND` | `GND` |
+| `SDA` | `GPIO21` |
+| `SCL` | `GPIO22` |
+
+Gắn cố định module vào tay cầm. Firmware có thể dùng độ lớn vận tốc góc
+từ ba trục gyro để phát hiện cú vung và ước lượng `swing`, tương tự tay
+cầm web. Quy đổi gyro sang °/s nếu thư viện trả về rad/s. Để tính
+`direction`, dùng thành phần gia tốc ngang sau khi loại ảnh hưởng của trọng
+lực và quy đổi sang m/s² nếu thư viện trả về g.
+
+Tay cầm web lấy gia tốc theo trục X của điện thoại khi cầm dọc. Với GY-521,
+chọn trục hoặc chiếu gia tốc theo phương ngang ứng với tư thế cầm thực tế.
+Thử vung trái và phải để kiểm tra dấu của `direction`. Đảo dấu nếu hai
+hướng bị ngược, rồi chỉnh ngưỡng theo tay cầm thực tế.
+
+Firmware gửi `swing` và `direction` đến topic `input` của game và mã phòng
+qua MQTT TCP ở cổng `1883`. Game nhận trực tiếp các giá trị này, nên không
+cần sửa web hoặc gửi thêm góc nghiêng hay góc xoay trong gói MQTT.
+
 ## MQTT
 
 Hai trang dùng cố định `wss://myoupip.com/mqtt`, khai báo chung trong
